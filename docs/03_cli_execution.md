@@ -2,6 +2,17 @@
 
 Run from the project root in PowerShell. Replace `<...>` placeholders before running. `<aws-profile>` means your deployment profile; `<read-only-profile>` means your inspection profile. Keep actual values in ignored `.local/` files.
 
+**Git Bash users:** `MINGW64` means Bash, not PowerShell. Assign variables without a leading `$` or spaces around `=`:
+
+```bash
+deployProfile="<aws-profile>"
+readProfile="<read-only-profile>"
+accountId="<account-id>"
+bucketName="rag-bedrock-${accountId}-us-east-1"
+```
+
+Use variables as `"$deployProfile"` in commands. AWS CLI commands below work in either shell with their quoted placeholders replaced. For local file reads, use `cat` instead of `Get-Content`. Check the previous command's exit code with `echo $?` in Bash or `$LASTEXITCODE` in PowerShell. Do not copy the terminal's `$` prompt.
+
 Run one step at a time. Stop on errors. Record date, step number, exit code, and a sanitized result in local `PROGRESS.md`. Add each created resource to the local cleanup inventory.
 
 | Order | Activity | Execution |
@@ -14,6 +25,7 @@ Run one step at a time. Stop on errors. Record date, step number, exit code, and
 Later deployment commands will be added as we reach them.
 
 **Next sequence:** 05 review files → 06 create bucket → 07 verify privacy/encryption → 08 upload and inspect.
+Then: 09 create service role → 10 attach S3/Titan permissions. See [KB setup](05_knowledge_base_setup.md).
 
 ## 01 · Check identity and access
 
@@ -92,3 +104,27 @@ aws s3api list-objects-v2 --bucket "<bucket-name>" --prefix runbooks/ --query 'C
 🧠 Check: Why does a successful S3 upload not mean the chatbot can answer from those files yet?
 
 Sources: [Create bucket](https://docs.aws.amazon.com/cli/latest/reference/s3api/create-bucket.html), [Block public access](https://docs.aws.amazon.com/cli/latest/reference/s3api/put-public-access-block.html), [Upload](https://docs.aws.amazon.com/cli/latest/reference/s3/cp.html), [S3 pricing](https://aws.amazon.com/s3/pricing/).
+
+## 09 · Create the Bedrock service role
+
+**Purpose:** allow Bedrock to assume a dedicated role. **Cost:** no IAM fee; no model invocation.
+
+The role was absent during read-only inspection. If creation reports `EntityAlreadyExists`, stop for inspection; do not overwrite an unknown role.
+
+```bash
+aws iam create-role --role-name rag-bedrock-kb-service --assume-role-policy-document file://.local/kb-trust-policy.json --tags Key=Project,Value=rag-bedrock --profile "<aws-profile>" --no-cli-pager
+```
+
+**Expected:** role details and exit code 0. Record its ARN in the local cleanup inventory. Account-specific JSON files are prepared locally, not included in Git; their purpose is explained in the KB setup guide.
+
+## 10 · Attach initial permissions
+
+**Purpose:** let the role read runbooks and invoke Titan V2. **Cost:** no fee to attach; later model calls are billable.
+
+```bash
+aws iam put-role-policy --role-name rag-bedrock-kb-service --policy-name RagLabSourceEmbedding --policy-document file://.local/kb-source-embedding-policy.json --profile "<aws-profile>" --no-cli-pager
+```
+
+**Expected:** no output, exit code 0. This replaces the same-named inline policy if it already exists. Codex then checks the saved trust and permissions using the read-only profile. OpenSearch access will be added after its ARN exists.
+
+Sources: [Create role](https://docs.aws.amazon.com/cli/latest/reference/iam/create-role.html), [Attach inline role policy](https://docs.aws.amazon.com/cli/latest/reference/iam/put-role-policy.html).

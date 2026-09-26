@@ -25,7 +25,7 @@ These are expected results, not observed chatbot answers.
 
 Follow steps **05–08** in the [CLI sequence](03_cli_execution.md). Budget setup was skipped by user choice. S3 requests and storage are billable; these two tiny text files should cost only a small fraction of a dollar for one day, excluding unrelated account usage. No embedding or vector-store charges begin from this upload alone.
 
-Expected final state: a private bucket, default encryption verified, and exactly two runbook objects under `runbooks/`. No upload has been verified yet.
+Observed on 2026-09-27: public-access blocking and AES256 encryption verified through read-only calls. User-provided upload output and S3 listing confirm two nonempty runbooks: production 859 bytes, staging 1093 bytes. Remote contents have not been hash-compared. KB ingestion has not started.
 
 ## 🎤 Interview FAQ
 
