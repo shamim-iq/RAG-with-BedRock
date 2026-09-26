@@ -10,7 +10,7 @@
 - Explain necessary terms. Use colorful Mermaid diagrams with text labels and text equivalents.
 - End theory documents with `## 🎤 Interview FAQ` and 4–6 short question/answer pairs.
 - Separate plans from actual observations. Never claim untested scale.
-- Maintain current and next activity in PROGRESS.md.
+- Maintain current and next activity in local-only `PROGRESS.md`; create it if missing. Keep it ignored and never commit it.
 - Keep code simple: small functions, descriptive names, concise docstrings and intent comments.
 - Include a short data flow at the top of pipeline files.
 - Highlight complete important Python sections with these exact markers, with a short what/why explanation above:

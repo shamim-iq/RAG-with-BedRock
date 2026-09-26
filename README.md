@@ -10,7 +10,6 @@ Build a small chatbot that answers DevOps questions from approved documents. Und
 
 1. Read [Architecture and workflow](docs/01_architecture.md).
 2. Try its understanding questions before setup.
-3. Check [Progress](PROGRESS.md) for the next activity.
 
 **Status:** 🟡 Understanding the design. No AWS resources or application created.
 
