@@ -1,0 +1,17 @@
+# Local settings, private notes, and credentials
+.local/
+.aws/
+.env
+.env.*
+*.pem
+*.key
+*.pfx
+*.p12
+*.tfstate
+*.tfstate.*
+.terraform/
+
+# Local runtimes and caches
+.venv/
+__pycache__/
+node_modules/
