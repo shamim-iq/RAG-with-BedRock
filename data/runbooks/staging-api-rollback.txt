@@ -1,0 +1,19 @@
+STAGING API ROLLBACK — FICTIONAL TRAINING RUNBOOK
+Environment: staging. Service: demo-api. Namespace: staging.
+Version: 1. Review date: 2026-09-27.
+These instructions are retrieval test data, not authorization to operate a real cluster.
+
+When to use:
+After a staging deployment, the demo-api health check fails and the release owner approves rollback.
+
+Prerequisites:
+Confirm the Kubernetes context is the intended staging cluster. Verify the previous deployment revision is known and healthy. Stop if either check fails. Do not use this procedure for production.
+
+Procedure:
+1. Inspect history: kubectl rollout history deployment/demo-api -n staging
+2. With release-owner approval, roll back: kubectl rollout undo deployment/demo-api -n staging
+3. Wait up to 120 seconds: kubectl rollout status deployment/demo-api -n staging --timeout=120s
+4. Run the staging health check and record the release revision and result.
+
+If verification fails:
+Stop repeated rollbacks, collect deployment events, and notify the release owner. This runbook does not define database rollback or schema recovery.

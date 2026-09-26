@@ -1,0 +1,13 @@
+PRODUCTION API ROLLBACK — FICTIONAL TRAINING RUNBOOK
+Environment: production. Service: demo-api.
+Version: 1. Review date: 2026-09-27.
+These instructions are retrieval test data, not authorization to operate a real cluster.
+
+Procedure:
+Production rollback requires incident-commander approval and an approved release-pipeline rollback job. Record the incident number and the last known healthy release before running that job.
+
+Restrictions:
+Do not use the staging kubectl rollout undo procedure in production. This runbook intentionally contains no production CLI rollback command. If the pipeline or approval is unavailable, escalate to the incident commander.
+
+Verification:
+The incident commander reviews production health checks and error rates before closing the rollback. This document does not contain live cluster status or database recovery steps.

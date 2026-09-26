@@ -1,6 +1,7 @@
 # Local settings, private notes, and credentials
 .local/
 /PROGRESS.md
+/docs/inspection-policy.json
 .aws/
 .env
 .env.*
