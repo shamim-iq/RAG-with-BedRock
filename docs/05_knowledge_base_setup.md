@@ -4,13 +4,13 @@
 
 ## 🔐 Why a service role?
 
-Read [Who can do what?](06_permissions_explained.md) for the short permissions map and verification examples.
+Read [RAG permission layers](06_permissions_explained.md) for the service-role flow and the purpose of each permission.
 
 Your deployment profile creates resources. Bedrock uses a separate role to read runbooks and create embeddings.
 
 - **Trust policy:** who can assume the role — Bedrock, for KBs in this account and Region.
 - **Permissions policy:** what it can do — list the lab bucket, read `runbooks/`, and invoke Titan Text Embeddings V2.
-- **PassRole:** lets your deployment identity assign this role to Bedrock; it does not let Codex assume it.
+- **PassRole:** authorizes assigning this role to Bedrock when creating the Knowledge Base.
 
 ```mermaid
 flowchart LR

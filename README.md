@@ -11,7 +11,7 @@ Build a small chatbot that answers DevOps questions from approved documents. Und
 1. Read [Architecture and workflow](docs/01_architecture.md).
 2. Try its understanding questions before setup.
 3. Follow the [AWS CLI execution sequence](docs/03_cli_execution.md) as each activity is reached.
-4. Use [Who can do what?](docs/06_permissions_explained.md) to understand the permission layers.
+4. Read [RAG permission layers](docs/06_permissions_explained.md) to understand the service role.
 
 **Status:** 🟡 Sample runbooks uploaded to S3; bucket privacy and encryption verified. Knowledge Base and chatbot setup are pending.
 

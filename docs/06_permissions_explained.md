@@ -1,108 +1,67 @@
-# 🔐 Who can do what?
+# 🔐 RAG permissions: who accesses what?
 
-**Understand well:** identities, roles, trust, permissions, and PassRole.
+**Understand well:** a role is an AWS identity; policies define who can use it and what it can access.
 
-**Basic awareness:** additional OpenSearch access layers, planned for the next setup activity.
+**Status:** S3 is verified. The service role, Knowledge Base, Titan calls, and OpenSearch connections below are planned or awaiting verification.
 
-## 🧩 Five words to remember
-
-| Word | Meaning |
-| --- | --- |
-| Profile | Local CLI settings that select an AWS identity; the name grants no permissions |
-| Principal | The user, role session, or AWS service making a request |
-| Role | An identity assumed temporarily; Bedrock uses a service role |
-| Policy | Rules defining allowed/denied actions and their scope |
-| Permission | An action allowed on a resource when the required conditions hold |
-
-## 👥 Three identities, separate jobs
-
-| Who | Where permissions live | Why grant them? |
-| --- | --- | --- |
-| Codex inspection user | Attached read-only IAM policy | Inspect settings/results; explicitly deny operations outside the inspection list |
-| Your deployment user | Attached deployment IAM policy | Create/configure lab resources, run tests, and delete them afterward |
-| Bedrock service role | Trust policy + attached role permissions | Let Bedrock read runbooks, invoke Titan, and later access the vector store |
-
-**Your permissions are not automatically inherited by Bedrock.** Local policy JSON is only a file until applied to AWS.
+## 🗺️ Permission flow
 
 ```mermaid
 flowchart TD
-    C["👀 Codex identity"] -->|Read-only policy| I["Inspect settings and results"]
-    U["🛠️ Your identity"] -->|Deployment policy| D["Create and clean up resources"]
-    U -->|iam:PassRole| A["Assign service role to KB"]
-    B["🤖 Bedrock"] -->|Trust policy permits assumption| R["🔑 KB service role · planned"]
-    R -->|Role permissions| S["Read S3 runbooks"]
-    R -->|Role permissions| T["Invoke Titan embeddings"]
-    classDef inspect fill:#dbeafe,stroke:#2563eb,color:#172554;
-    classDef deploy fill:#fef3c7,stroke:#d97706,color:#451a03;
-    classDef service fill:#dcfce7,stroke:#16a34a,color:#14532d;
-    class C,I inspect;
-    class U,D,A deploy;
-    class B,R,S,T service;
+    D["🛠️ Resource creator"] -->|iam:PassRole: assign role to KB| K["🤖 Bedrock Knowledge Base"]
+    A["💬 Chatbot application identity"] -->|bedrock:Retrieve or RetrieveAndGenerate| K
+    K -->|Trust policy: sts:AssumeRole| R["🔑 KB service role"]
+    R -->|s3:ListBucket + s3:GetObject| S["🪣 Private S3<br/>Read runbooks"]
+    R -->|bedrock:InvokeModel| T["🔢 Titan embeddings<br/>Embed documents and queries"]
+    R -->|IAM: aoss:APIAccessAll| O["🔎 OpenSearch Serverless<br/>Store and search vectors"]
+    P["📋 Data access policy<br/>Role + allowed index operations"] -->|Authorizes data operations| O
+    N["🌐 Network policy"] -->|Controls network reachability| O
+    classDef service fill:#dbeafe,stroke:#2563eb,color:#172554;
+    classDef access fill:#fef3c7,stroke:#d97706,color:#451a03;
+    classDef data fill:#dcfce7,stroke:#16a34a,color:#14532d;
+    classDef caller fill:#f3e8ff,stroke:#9333ea,color:#581c87;
+    class K,T service;
+    class R,P,N access;
+    class S,O data;
+    class A,D caller;
 ```
 
-**Text:** Codex inspects. You deploy and assign the role. Bedrock assumes that role and uses its permissions. Role creation and use remain unverified.
+**Text:** the creator assigns a role to the KB. Bedrock assumes it to read S3, call Titan, and access OpenSearch. The chatbot uses its own identity to query the KB. Arrows show authorization, not execution order.
 
-## 🔑 Three different permission checks
+## 🔑 Who needs which permission—and why?
 
-| Check | Attached to | Question answered | Our restriction |
-| --- | --- | --- | --- |
-| `iam:PassRole` | Deployment user | Can you assign this role to Bedrock? | Exact lab role; `iam:PassedToService` is Bedrock |
-| Trust policy | Service role | Who may assume this role? | Bedrock; matching source account and regional KB ARN |
-| Permissions policy | Service role | What may the assumed role do? | List the lab bucket, read `runbooks/*`, invoke the exact Titan V2 model |
+| Entity | Permission / policy | Purpose and scope |
+| --- | --- | --- |
+| Resource creator | `iam:PassRole` | Assign the specific service role when creating the KB; resource creation also needs the relevant create permissions. |
+| Bedrock service | Role **trust policy**: `sts:AssumeRole` | Use the KB role temporarily. Trust `bedrock.amazonaws.com`, restricted by source account and KB ARN. |
+| KB service role → S3 | `s3:ListBucket`, `s3:GetObject` | Discover files in the source bucket and read documents under the runbook prefix. |
+| KB service role → Titan | `bedrock:InvokeModel` | Call the selected embedding model to turn document chunks and queries into vectors. |
+| KB service role → OpenSearch | IAM `aoss:APIAccessAll` **plus data access policy** | Reach the collection API and perform allowed operations on the intended vector index, such as reading and writing documents. |
+| Chatbot application → KB | `bedrock:Retrieve` or `bedrock:RetrieveAndGenerate` | Fetch passages or request a grounded answer. Generation also needs the applicable model permissions for the chosen API/model. |
 
-`PassRole` does not assume the role. Trust does not grant S3 access. S3 access does not grant model invocation.
+**Trust ≠ permission:** trusting Bedrock to assume the role does not itself grant access to S3, Titan, or OpenSearch. Scope each grant to the required resources. [AWS service-role guidance](https://docs.aws.amazon.com/bedrock/latest/userguide/kb-permissions.html)
 
-## 📄 Read a policy statement
+## 🛡️ Additional resource controls
 
-**Who → action → resource → conditions → allow/deny**
-
-- **Principal:** who is trusted; explicit in the role's trust policy. For a user permissions policy, its attachment identifies the user.
-- **Action:** operation, such as `s3:GetObject`.
-- **Resource:** target ARN (AWS resource identifier), such as the lab bucket's `runbooks/*` objects.
-- **Condition:** extra requirement, such as Region, source account, or `Project=rag-bedrock` tag.
-- **Effect:** `Allow` or `Deny`. An applicable explicit deny overrides an allow; without applicable authorization, access is denied.
-
-`Resource: "*"` means all resources for the listed actions—not permission for every action. Our Codex policy uses **Deny + NotAction** to block everything outside its explicit inspection list. Other attached policies and account controls also affect effective access.
-
-## 🚪 OpenSearch has additional doors — planned
-
-| Layer | Purpose |
+| Layer | Why it exists |
 | --- | --- |
-| IAM collection-management permissions | Let your deployment user create/configure/delete the collection |
-| IAM `aoss:APIAccessAll` | Allow collection API access for the caller; it is not sufficient alone |
-| Data-access policy | Name the permitted principals and their collection/index operations |
-| Network policy | Decide which network paths/services can reach the endpoint |
-| Encryption policy | Choose the key protecting stored data; does not grant document access |
+| S3 Block Public Access | Keeps documents private while allowing authorized role access. |
+| OpenSearch data access policy | Names the role and the collection/index operations it may perform; IAM API access alone is insufficient. |
+| OpenSearch network policy | Controls how the collection endpoint can be reached; reachability alone grants no data access. |
+| Encryption policy/settings | Protect stored data. They do not grant permission to read it. Customer-managed KMS keys need additional key permissions where applicable. |
 
-For Bedrock, we will grant vector-store access to the **service role**. For manual index setup, access belongs to **your deployment identity**. Codex's policy does not grant collection data-plane access. These layers are not yet configured.
-
-## ✅ What proves a permission works?
-
-| Evidence | What it proves |
-| --- | --- |
-| Valid local JSON | File structure only |
-| Policy attached in AWS | Configuration saved, not every action tested |
-| Successful STS identity check | Which identity is in use |
-| Successful model listing | Listing access, not model invocation |
-| Successful S3 upload | That caller could write that object at that time |
-| Successful future KB sync | The exercised ingestion path worked; inspect job results too |
-
-**Observed:** inspection calls and your S3 creation/upload worked. **Pending:** service-role creation, role assumption, Titan invocation, and OpenSearch access. A failed call's action/resource explains which permission needs investigation; it is not a reason to grant administrator access.
-
-Local file purposes: [profile policies guide](02_access_and_costs.md) · [service-role file guide](05_knowledge_base_setup.md). Account-specific JSON stays in ignored `.local/`.
-
-AWS references: [Policies](https://docs.aws.amazon.com/IAM/latest/UserGuide/access_policies.html), [PassRole](https://docs.aws.amazon.com/IAM/latest/UserGuide/id_roles_use_passrole.html), [KB service role](https://docs.aws.amazon.com/bedrock/latest/userguide/kb-permissions.html), [OpenSearch access](https://docs.aws.amazon.com/opensearch-service/latest/developerguide/serverless-data-access.html).
+An applicable **explicit deny overrides an allow**. Successful ingestion and retrieval—not merely saved policies—verify the complete access path. [OpenSearch data access](https://docs.aws.amazon.com/opensearch-service/latest/developerguide/serverless-data-access.html) · [Network access](https://docs.aws.amazon.com/opensearch-service/latest/developerguide/serverless-network.html) · [IAM evaluation](https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_policies_evaluation-logic.html)
 
 ## 🎤 Interview FAQ
 
-**1. Is an AWS profile a role?** No; it is local configuration selecting credentials or a role to use.
+**1. Why does the KB need a service role?** Bedrock uses it to access the source documents, embedding model, and vector store.
 
-**2. Trust versus permissions?** Trust controls who assumes a role; permissions control what it can do.
+**2. Trust policy versus permissions policy?** Trust defines who may assume the role; permissions define what that role may do.
 
-**3. Why PassRole?** To authorize assigning a specific role to a service without handing over keys.
+**3. PassRole versus AssumeRole?** The creator assigns the role with PassRole; Bedrock uses it through AssumeRole.
 
-**4. Why can deployment succeed but ingestion fail?** The deployment identity and Bedrock's service role have different permissions.
+**4. Why two S3 permissions?** ListBucket discovers object names; GetObject reads their contents.
 
-**5. Does a successful read prove write access?** No; each action and resource is checked separately.
+**5. Why several OpenSearch policies?** IAM allows API access, the data policy authorizes index operations, and the network policy controls reachability.
 
-**6. Does a network policy grant OpenSearch document access?** No; IAM and data-access permissions must also allow the operation.
+**6. Does the chatbot need the KB service role?** No. Its own identity calls the KB; Bedrock uses the service role for backend access.
